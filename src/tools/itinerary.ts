@@ -18,10 +18,14 @@ export const generateItineraryTool = new DynamicStructuredTool({
   }),
   func: async ({ data }) => {
     const cleaned = stripCodeFences(data)
-    const parsed = JSON.parse(cleaned) as Itinerary
-    // Basic structure validation
+    let parsed: Itinerary
+    try {
+      parsed = JSON.parse(cleaned) as Itinerary
+    } catch (e) {
+      return `JSON 解析失败，请修正后重试：${(e as Error)?.message ?? '格式错误'}`
+    }
     if (!parsed.meta?.city || !Array.isArray(parsed.days)) {
-      throw new Error('行程数据格式不完整：需要包含 meta.city 和 days 数组')
+      return '行程数据格式不完整：需要包含 meta.city 和 days 数组，请补全后重试。'
     }
     itineraryResult.data = parsed
     return '行程已成功生成并保存。'
