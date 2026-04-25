@@ -93,12 +93,14 @@ app.post('/api/chat/stream', async (c) => {
     const chatHistory = await buildChatHistory(userId)
 
     try {
+      const abort = new AbortController()
+
       const { response, steps } = await runAgent(message, chatHistory, (tool, status, data) => {
         sseStream.writeSSE({
           event: 'step',
           data: JSON.stringify({ tool, status, data }),
         }).catch(() => {})
-      })
+      }, abort)
 
       let resp: ChatResponse
       if (itineraryResult.data) {
@@ -124,8 +126,23 @@ app.post('/api/chat/stream', async (c) => {
         event: 'result',
         data: JSON.stringify(resp),
       })
-    } catch (err) {
-      const errMsg = (err as Error)?.message ?? '未知错误'
+    } catch (err: any) {
+      // Agent aborted early after generate_itinerary — still send result
+      if (itineraryResult.data) {
+        const it = itineraryResult.data
+        addMessage(userId, 'ai', `[行程: ${it.meta.city} ${it.meta.days}天 预算¥${it.meta.budgetTotal} · ${it.meta.summary}]`, it as unknown as Record<string, unknown>)
+        await sseStream.writeSSE({
+          event: 'result',
+          data: JSON.stringify({
+            type: 'itinerary',
+            content: null,
+            itinerary: it,
+            steps: [],
+          }),
+        })
+        return
+      }
+      const errMsg = err?.message ?? '未知错误'
       await sseStream.writeSSE({
         event: 'result',
         data: JSON.stringify({ type: 'error', content: errMsg, itinerary: null, steps: [] }),

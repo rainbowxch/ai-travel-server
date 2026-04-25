@@ -111,6 +111,7 @@ export async function runAgent(
   input: string,
   chatHistory: Array<{ role: string; content: string }>,
   onStep?: (tool: string, status: 'running' | 'done' | 'error', data?: string) => void,
+  abortController?: AbortController,
 ): Promise<{ response: string; steps: AgentStep[] }> {
   const exec = await getExecutor()
   itineraryResult.data = null
@@ -119,10 +120,13 @@ export async function runAgent(
 
   // Bind callbacks declaratively via withConfig
   const configuredExec = onStep
-    ? exec.withConfig({ callbacks: [createStepHandler(onStep)] })
+    ? exec.withConfig({ callbacks: [createStepHandler(onStep, abortController)] })
     : exec
 
-  const result = await configuredExec.invoke({ input, chat_history: history })
+  const result = await configuredExec.invoke(
+    { input, chat_history: history },
+    { signal: abortController?.signal },
+  )
   const steps = extractSteps(result.intermediateSteps)
 
   return { response: (result.output as string) ?? '', steps }
@@ -131,9 +135,22 @@ export async function runAgent(
 /**
  * Create a callback handler that maps LangChain tool lifecycle events
  * to the onStep callback for SSE streaming.
+ * When `generate_itinerary` completes successfully, aborts the agent early
+ * since we already have the final result and don't need the LLM synthesis round.
  */
-function createStepHandler(onStep: (tool: string, status: 'running' | 'done' | 'error', data?: string) => void) {
+function createStepHandler(
+  onStep: (tool: string, status: 'running' | 'done' | 'error', data?: string) => void,
+  abortController?: AbortController,
+) {
   const toolRunMap = new Map<string, string>()
+
+  function checkItineraryDone(toolName: string, result: string) {
+    if (toolName === 'generate_itinerary' && result === '行程已成功生成并保存。') {
+      onStep('generate_itinerary', 'done', result)
+      // Abort agent early — we already have the final itinerary
+      setTimeout(() => abortController?.abort(), 0)
+    }
+  }
 
   return {
     handleToolStart: async (
@@ -156,6 +173,8 @@ function createStepHandler(onStep: (tool: string, status: 'running' | 'done' | '
       const result = typeof output === 'string'
         ? output.slice(0, 200)
         : JSON.stringify(output ?? '').slice(0, 200)
+      // If generate_itinerary just completed, we have the final result — skip LLM synthesis
+      checkItineraryDone(name, result.trim())
       onStep(name, 'done', result)
     },
 
