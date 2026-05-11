@@ -1,0 +1,57 @@
+{
+  "timestamp": "2026-05-05T14:48:47.357Z",
+  "total": 47,
+  "passed": 47,
+  "failed": 0,
+  "skipped": 0,
+  "errors": 0,
+  "successRate": 1,
+  "avgSimilarity": 0.7909090909090909,
+  "groups": {
+    "健康检查": {
+      "total": 2,
+      "passed": 2,
+      "failed": 0
+    },
+    "注册": {
+      "total": 4,
+      "passed": 4,
+      "failed": 0
+    },
+    "登录": {
+      "total": 4,
+      "passed": 4,
+      "failed": 0
+    },
+    "用户信息": {
+      "total": 3,
+      "passed": 3,
+      "failed": 0
+    },
+    "聊天": {
+      "total": 13,
+      "passed": 13,
+      "failed": 0
+    },
+    "历史记录": {
+      "total": 4,
+      "passed": 4,
+      "failed": 0
+    },
+    "重置": {
+      "total": 2,
+      "passed": 2,
+      "failed": 0
+    },
+    "收藏": {
+      "total": 9,
+      "passed": 9,
+      "failed": 0
+    },
+    "边缘场景": {
+      "total": 6,
+      "passed": 6,
+      "failed": 0
+    }
+  }
+}

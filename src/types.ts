@@ -4,6 +4,11 @@ export interface TimeBlock {
   title: string
   type: 'sight' | 'food' | 'transport' | 'rest' | 'shopping'
   why: string
+  pics?: string[]
+  costEstimate?: number
+  tips?: string[]
+  openingHours?: string
+  activities?: string[]
 }
 
 export interface DayPlan {
@@ -20,6 +25,8 @@ export interface Itinerary {
     summary: string
     budgetTotal: number
     constraints: string[]
+    dates?: string
+    peopleCount?: string
   }
   days: DayPlan[]
 }

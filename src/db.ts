@@ -37,6 +37,28 @@ export function initDb(): Database.Database {
 
     CREATE INDEX IF NOT EXISTS idx_messages_user
       ON messages(user_id, created_at);
+
+    CREATE TABLE IF NOT EXISTS travel_state (
+      user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      historical_summary TEXT,
+      last_itinerary_json TEXT,
+      ask_count INTEGER DEFAULT 0,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS favorites (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      itinerary_json TEXT NOT NULL,
+      fingerprint TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_favorites_user
+      ON favorites(user_id, created_at);
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_favorites_fp
+      ON favorites(user_id, fingerprint);
   `)
 
   // Migration: add columns for existing databases

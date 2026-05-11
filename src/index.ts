@@ -13,4 +13,4 @@ console.log(`[server] starting on port ${config.port}`)
 console.log(`[server] model: ${config.model}`)
 console.log(`[server] baseUrl: ${config.baseUrl}`)
 
-serve({ fetch: app.fetch, port: config.port })
+serve({ fetch: app.fetch, port: config.port, hostname: '0.0.0.0' })
