@@ -59,6 +59,20 @@ export function initDb(): Database.Database {
 
     CREATE UNIQUE INDEX IF NOT EXISTS idx_favorites_fp
       ON favorites(user_id, fingerprint);
+
+    CREATE TABLE IF NOT EXISTS sight_enrichments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      city TEXT NOT NULL,
+      title TEXT NOT NULL,
+      overview TEXT NOT NULL,
+      history TEXT NOT NULL,
+      culture TEXT NOT NULL,
+      stories TEXT NOT NULL,
+      highlights TEXT NOT NULL,
+      practical TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      UNIQUE(city, title)
+    );
   `)
 
   // Migration: add columns for existing databases
@@ -159,4 +173,44 @@ export function getMessages(userId: string): MessageRow[] {
 
 export function deleteUserMessages(userId: string): void {
   db.prepare(`DELETE FROM messages WHERE user_id = ?`).run(userId)
+}
+
+/* ── Sight Enrichments ── */
+
+export interface SightEnrichmentRow {
+  overview: string
+  history: string
+  culture: string
+  stories: string
+  highlights: string
+  practical: string
+}
+
+export function getSightEnrichment(city: string, title: string): SightEnrichmentRow | undefined {
+  return db.prepare(`
+    SELECT overview, history, culture, stories, highlights, practical
+    FROM sight_enrichments
+    WHERE city = ? AND title = ?
+  `).get(city, title) as SightEnrichmentRow | undefined
+}
+
+export function saveSightEnrichment(city: string, title: string, data: SightEnrichmentRow): void {
+  db.prepare(`
+    INSERT INTO sight_enrichments (
+      city, title, overview, history, culture, stories, highlights, practical, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(city, title) DO UPDATE SET
+      overview = excluded.overview,
+      history = excluded.history,
+      culture = excluded.culture,
+      stories = excluded.stories,
+      highlights = excluded.highlights,
+      practical = excluded.practical,
+      created_at = excluded.created_at
+  `).run(
+    city, title,
+    data.overview, data.history, data.culture,
+    data.stories, data.highlights, data.practical,
+    Date.now(),
+  )
 }

@@ -1,5 +1,6 @@
 import { ChatOpenAI } from '@langchain/openai'
 import { config } from './config.js'
+import { getSightEnrichment, saveSightEnrichment } from './db.js'
 
 /** In-memory cache for enriched sight data */
 const enrichCache = new Map<string, SightEnrichResult>()
@@ -12,6 +13,10 @@ export interface SightEnrichResult {
   highlights: string
   practical: string
 }
+
+export type SightEnrichSource = 'cache' | 'llm'
+
+export type SightEnrichResponse = SightEnrichResult & { source: SightEnrichSource }
 
 function cacheKey(title: string, city: string): string {
   return `${city}:${title}`
@@ -47,10 +52,22 @@ const ENRICH_PROMPT = `你是一个专业的旅游景点知识库。请根据景
 景点名称：{title}
 所在城市：{city}`
 
-export async function enrichSight(title: string, city: string): Promise<SightEnrichResult> {
+function rememberEnrichment(key: string, city: string, title: string, result: SightEnrichResult): SightEnrichResult {
+  enrichCache.set(key, result)
+  saveSightEnrichment(city, title, result)
+  return result
+}
+
+export async function enrichSight(title: string, city: string): Promise<SightEnrichResponse> {
   const key = cacheKey(title, city)
   const cached = enrichCache.get(key)
-  if (cached) return cached
+  if (cached) return { ...cached, source: 'cache' }
+
+  const fromDb = getSightEnrichment(city, title)
+  if (fromDb) {
+    enrichCache.set(key, fromDb)
+    return { ...fromDb, source: 'cache' }
+  }
 
   const prompt = ENRICH_PROMPT.replace('{title}', title).replace('{city}', city)
 
@@ -71,12 +88,13 @@ export async function enrichSight(title: string, city: string): Promise<SightEnr
       practical: data.practical || `建议安排1-2小时游览，提前查看开放时间，合理安排行程。`,
     }
 
-    enrichCache.set(key, result)
-    return result
+    rememberEnrichment(key, city, title, result)
+    return { ...result, source: 'llm' }
   } catch (e) {
     console.error(`[sight-enrich] LLM error for ${title}:`, (e as Error).message)
-    // Fallback: return generated content based on title + city
-    return generateFallback(title, city)
+    const fallback = generateFallback(title, city)
+    rememberEnrichment(key, city, title, fallback)
+    return { ...fallback, source: 'llm' }
   }
 }
 
