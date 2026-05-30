@@ -12,6 +12,7 @@ import { authRouter } from './auth.js'
 import { checkRequirements } from './requirements.js'
 import { enrichItineraryImages } from './images.js'
 import { addFavorite, getFavorites, removeFavorite } from './favorites.js'
+import { enrichSight } from './sight-enrich.js'
 import type { ChatResponse, AgentStep, Itinerary } from './types.js'
 import {
   getTravelState, persistTravelState, deleteTravelState,
@@ -27,8 +28,13 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 export const app = new Hono()
 
 app.use('/*', cors({
-  origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:4173'],
-  allowMethods: ['POST', 'GET', 'OPTIONS'],
+  origin: (origin) => {
+    if (!origin) return '*'
+    // Allow all localhost ports during development
+    if (/^https?:\/\/localhost(:\d+)?$/.test(origin)) return origin
+    return origin
+  },
+  allowMethods: ['POST', 'GET', 'PUT', 'DELETE', 'OPTIONS'],
 }))
 
 /* ── Auth ── */
@@ -106,7 +112,14 @@ app.post('/api/chat/stream', requireAuth, async (c) => {
         incrementAskCount(userId)
         await sseStream.writeSSE({
           event: 'result',
-          data: JSON.stringify({ type: 'text', content: reqCheck.question, itinerary: null, steps: [] }),
+          data: JSON.stringify({
+            type: 'requirements',
+            content: reqCheck.question,
+            itinerary: null,
+            steps: [],
+            missingFields: reqCheck.missingFields || [],
+            flexibleFields: reqCheck.flexibleFields || [],
+          }),
         })
         return
       }
@@ -244,6 +257,15 @@ app.delete('/api/favorites/:id', requireAuth, async (c) => {
   return ok ? c.json({ ok: true }) : c.json({ error: '收藏不存在' }, 404)
 })
 
+/* ── Sight Enrichment ── */
+
+app.post('/api/sight/enrich', async (c) => {
+  const { title, city } = await c.req.json<{ title: string; city: string }>()
+  if (!title || !city) return c.json({ error: '参数缺失' }, 400)
+  const result = await enrichSight(title, city)
+  return c.json(result)
+})
+
 /* ── Balance ── */
 
 let balanceCache: { data: unknown; ts: number } | null = null
@@ -275,6 +297,7 @@ app.get('/api/health', (c) => c.json({ status: 'ok', model: config.model }))
 /* ── Serve built frontend (SPA catch-all) ── */
 
 const distPath = path.resolve(__dirname, '../../vue-project/dist')
+const distExists = fs.existsSync(distPath)
 const MIME: Record<string, string> = {
   '.html': 'text/html',
   '.js': 'application/javascript',
@@ -290,6 +313,7 @@ const MIME: Record<string, string> = {
 app.get('*', (c) => {
   // Only handle non-API routes
   if (c.req.path.startsWith('/api/')) return c.notFound()
+  if (!distExists) return c.notFound()
 
   const url = c.req.path === '/' ? '/index.html' : c.req.path
   const filePath = path.join(distPath, url)

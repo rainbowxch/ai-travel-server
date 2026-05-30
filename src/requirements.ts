@@ -17,6 +17,7 @@ export interface RequirementCheckResult {
   requirements: TravelRequirements
   flexibleFields: string[]
   question: string
+  missingFields: string[]
 }
 
 const FIELD_LABELS: Record<string, string> = {
@@ -24,6 +25,7 @@ const FIELD_LABELS: Record<string, string> = {
   peopleCount: '出行人数',
   duration: '游玩天数',
   dates: '出行日期',
+  departureCity: '出发城市',
 }
 
 const EXTRACTION_PROMPT = `你是一个旅行规划需求分析器。分析对话并提取用户的旅行规划需求。
@@ -108,6 +110,7 @@ export async function checkRequirements(
         requirements: parsed.requirements,
         flexibleFields: [],
         question: '',
+        missingFields: [],
       }
     }
 
@@ -134,7 +137,7 @@ export async function checkRequirements(
 
     if (missingFields.length === 0) {
       // All fields satisfied (either provided or user said 无所谓)
-      return { complete: true, requirements: normalized, flexibleFields: flexible, question: '' }
+      return { complete: true, requirements: normalized, flexibleFields: flexible, question: '', missingFields: [] }
     }
 
     // Use LLM-generated question, or build a fallback
@@ -144,7 +147,7 @@ export async function checkRequirements(
       question = `好的，我来帮您规划旅行！还需要了解以下信息：${missing}。请告诉我吧～`
     }
 
-    return { complete: false, requirements: normalized, flexibleFields: flexible, question }
+    return { complete: false, requirements: normalized, flexibleFields: flexible, question, missingFields }
   } catch (err) {
     // If extraction fails (network / parse error), let the agent handle it
     console.warn('[requirements] extraction failed, proceeding to agent:', (err as Error)?.message)
@@ -153,6 +156,7 @@ export async function checkRequirements(
       requirements: { destination: null, peopleCount: null, budget: null, duration: null, dates: null, departureCity: null, preferences: [] },
       flexibleFields: [],
       question: '',
+      missingFields: [],
     }
   }
 }
